@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>College ERP - Timetable Management</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    .font-serif { font-family: 'Instrument Serif', Georgia, serif; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    * { transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.15s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideIn { from { transform: translateX(-20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .animate-fade-in { animation: fadeIn 0.4s ease-out; }
+    .animate-slide-in { animation: slideIn 0.3s ease-out; }
+    .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.3); }
+    .shadow-soft { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06); }
+    .shadow-soft-lg { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.06); }
+    .bg-gradient-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .bg-gradient-success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+    .bg-gradient-warning { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: { 50: '#f5f7ff', 100: '#ebf0ff', 200: '#d6e0ff', 300: '#a3bcff', 400: '#708aff', 500: '#667eea', 600: '#5568d3', 700: '#4451b8', 800: '#3a4299', 900: '#2d3373' },
+          },
+          fontFamily: { sans: ['DM Sans', 'system-ui', 'sans-serif'], serif: ['Instrument Serif', 'Georgia', 'serif'] },
+        },
+      },
+    };
+  </script>
+</head>
+<body class="bg-slate-50">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, createContext, useContext } = React;
+
+    const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    // This mock user will get overwritten when we log in successfully
+    const MOCK_USER = {
+      id: '1',
+      name: 'Demo User',
+      email: 'demo@college.edu',
+      role: 'student',
+      avatar: 'https://ui-avatars.com/api/?name=User&background=667eea&color=fff',
+      enrollmentNumber: 'EN2024001',
+      division: 'A',
+      semester: 5,
+    };
+
+    const MOCK_TIMETABLE = {
+      Monday: [
+        { id: 1, time: '09:00-10:00', subject: 'Advanced Algorithms', code: 'CS501', teacher: 'Dr. Priya Mehta', room: 'LH-301', type: 'lecture' },
+        { id: 2, time: '10:00-11:00', subject: 'Machine Learning', code: 'CS502', teacher: 'Prof. Rajesh Kumar', room: 'LH-302', type: 'lecture' },
+      ],
+      Tuesday: [
+        { id: 4, time: '09:00-10:00', subject: 'Database Systems', code: 'CS503', teacher: 'Dr. Anjali Desai', room: 'LH-301', type: 'lecture' },
+      ],
+      Wednesday: [], Thursday: [], Friday: [], Saturday: [],
+    };
+
+    const MOCK_CLASSROOMS = [
+      { id: 1, roomNumber: 'LH-301', building: 'Main Block', capacity: 60, type: 'Lecture Hall', hasProjector: true, hasAC: true, floor: 3 },
+      { id: 2, roomNumber: 'LH-302', building: 'Main Block', capacity: 60, type: 'Lecture Hall', hasProjector: true, hasAC: true, floor: 3 },
+    ];
+
+    const MOCK_BOOKINGS = [];
+
+    // Icons
+    const CalendarIcon = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
+    const BookIcon = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>;
+    const BuildingIcon = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>;
+    const BellIcon = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>;
+    const UsersIcon = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>;
+    const ChartIcon = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>;
+    const DownloadIcon = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>;
+
+    // Sidebar
+    const Sidebar = ({ activeView, setActiveView, userRole }) => {
+      const menuItems = userRole === 'student' ? [
+        { id: 'dashboard', label: 'Dashboard', icon: <ChartIcon /> },
+        { id: 'timetable', label: 'My Timetable', icon: <CalendarIcon /> },
+      ] : userRole === 'teacher' ? [
+        { id: 'dashboard', label: 'Dashboard', icon: <ChartIcon /> },
+        { id: 'timetable', label: 'My Schedule', icon: <CalendarIcon /> },
+        { id: 'bookings', label: 'Book Classroom', icon: <BuildingIcon /> },
+      ] : [
+        { id: 'dashboard', label: 'Dashboard', icon: <ChartIcon /> },
+        { id: 'timetable', label: 'Timetable Manager', icon: <CalendarIcon /> },
+      ];
+
+      return (
+        <div className="w-64 bg-white border-r border-slate-200 h-screen flex flex-col shadow-soft">
+          <div className="p-6 border-b border-slate-200">
+            <h1 className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">College ERP</h1>
+            <p className="text-sm text-slate-500 mt-1">Timetable Management</p>
+          </div>
+          <nav className="flex-1 p-4 space-y-1">
+            {menuItems.map((item) => (
+              <button key={item.id} onClick={() => setActiveView(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all ${activeView === item.id ? 'bg-primary-50 text-primary-600 font-medium shadow-sm' : 'text-slate-700 hover:bg-slate-50'}`}>
+                {item.icon}<span>{item.label}</span>
+              </button>
+            ))}
+          </nav>
+          <div className="p-4 border-t border-slate-200">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
+              <img src={MOCK_USER.avatar} alt="User" className="w-10 h-10 rounded-full" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-900 truncate">{MOCK_USER.name}</p>
+                <p className="text-xs text-slate-500 truncate capitalize">{MOCK_USER.role}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const Header = ({ title, subtitle }) => (
+      <div className="bg-white border-b border-slate-200 px-8 py-6 shadow-soft">
+        <div className="flex items-center justify-between">
+          <div><h2 className="text-2xl font-bold text-slate-900">{title}</h2>{subtitle && <p className="text-sm text-slate-500 mt-1">{subtitle}</p>}</div>
+        </div>
+      </div>
+    );
+
+    const StatsCard = ({ title, value, subtitle, icon, gradient }) => (
+      <div className="bg-white rounded-xl p-6 shadow-soft hover:shadow-soft-lg transition-shadow animate-fade-in">
+        <div className="flex items-start justify-between">
+          <div><p className="text-sm font-medium text-slate-600">{title}</p><p className="text-3xl font-bold text-slate-900 mt-2">{value}</p><p className="text-sm text-slate-500 mt-1">{subtitle}</p></div>
+          <div className={`w-12 h-12 rounded-xl ${gradient} flex items-center justify-center text-white`}>{icon}</div>
+        </div>
+      </div>
+    );
+
+    // --- UPDATED ROLE-BASED DASHBOARD WITH ADMIN BOOKINGS ---
+    const DashboardView = ({ userRole }) => {
+      const [adminStats, setAdminStats] = useState({ totalStudents: 0, totalTeachers: 0, totalClassrooms: 0, pendingBookings: 0 });
+      const [bookings, setBookings] = useState([]);
+      const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+      useEffect(() => {
+        if (userRole === 'admin') {
+          const fetchStats = async () => {
+            try {
+              const token = localStorage.getItem('erp_token');
+              const res = await fetch('http://localhost:3000/api/v1/analytics/dashboard', { headers: { 'Authorization': `Bearer ${token}` } });
+              const result = await res.json();
+              if (result.success) setAdminStats(result.data);
+            } catch (err) {}
+          };
+          fetchStats();
+
+          // Fetch bookings for admin
+          const fetchBookings = async () => {
+            try {
+              const token = localStorage.getItem('erp_token');
+              const res = await fetch('http://localhost:3000/api/v1/admin/bookings', { headers: { 'Authorization': `Bearer ${token}` } });
+              const result = await res.json();
+              if (result.success) setBookings(result.data.bookings);
+            } catch (err) {
+              console.error('Error fetching bookings:', err);
+            }
+          };
+          fetchBookings();
+        }
+      }, [userRole, refreshTrigger]);
+
+      const handleBookingAction = async (bookingId, action) => {
+        if (!confirm(`Are you sure you want to ${action} this booking?`)) {
+          return;
+        }
+
+        const token = localStorage.getItem('erp_token');
+        try {
+          const res = await fetch(`http://localhost:3000/api/v1/admin/bookings/${bookingId}/${action}`, {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          const result = await res.json();
+          
+          if (result.success) {
+            alert(`Booking ${action} successfully!`);
+            // Trigger a refresh by changing the refreshTrigger state
+            setRefreshTrigger(prev => prev + 1);
+          } else {
+            alert(`Error: ${result.error || 'Failed to update booking'}`);
+          }
+        } catch (error) {
+          console.error('Error updating booking:', error);
+          alert('Failed to update booking. Please try again.');
+        }
+      };
+
+      return (
+        <div className="p-8 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {userRole === 'admin' ? (
+              <>
+                <StatsCard title="Total Students" value={adminStats.totalStudents} subtitle="Registered accounts" icon={<UsersIcon />} gradient="bg-gradient-primary" />
+                <StatsCard title="Teachers" value={adminStats.totalTeachers} subtitle="Active faculty" icon={<UsersIcon />} gradient="bg-gradient-success" />
+                <StatsCard title="Classrooms" value={adminStats.totalClassrooms} subtitle="Available rooms" icon={<BuildingIcon />} gradient="bg-gradient-warning" />
+                <StatsCard title="Pending Approvals" value={adminStats.pendingBookings} subtitle="Booking requests" icon={<CalendarIcon />} gradient="bg-gradient-primary" />
+              </>
+            ) : userRole === 'teacher' ? (
+              <>
+                <StatsCard title="Total Classes" value="18" subtitle="This week" icon={<CalendarIcon />} gradient="bg-gradient-primary" />
+                <StatsCard title="Subjects" value="2" subtitle="Assigned to you" icon={<BookIcon />} gradient="bg-gradient-success" />
+              </>
+            ) : (
+              <>
+                <StatsCard title="Current Status" value="Active" subtitle="Enrolled User" icon={<UsersIcon />} gradient="bg-gradient-primary" />
+                <StatsCard title="Timetable" value="Live" subtitle="Synced with Server" icon={<CalendarIcon />} gradient="bg-gradient-success" />
+              </>
+            )}
+          </div>
+
+          {/* ADMIN BOOKINGS LIST */}
+          {userRole === 'admin' && (
+            <div className="bg-white rounded-xl shadow-soft p-6 mt-6">
+              <h3 className="text-lg font-bold text-slate-900 mb-4">Classroom Booking Requests</h3>
+              <div className="space-y-3">
+                {bookings.length > 0 ? (
+                  bookings.map(booking => (
+                    <div key={booking.id} className="p-4 border border-slate-200 rounded-lg hover:border-primary-300 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3">
+                            <h4 className="font-semibold text-slate-900">{booking.teacher_name}</h4>
+                            <span className="text-slate-500">requested</span>
+                            <span className="font-semibold text-primary-600">{booking.classroom_name}</span>
+                          </div>
+                          <p className="text-sm text-slate-600 mt-1">
+                            {booking.purpose} • {new Date(booking.booking_date).toLocaleDateString()} • {booking.start_time} - {booking.end_time}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {booking.status === 'pending' ? (
+                            <>
+                              <button
+                                onClick={() => handleBookingAction(booking.id, 'approved')}
+                                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium text-sm"
+                              >
+                                ✓ Approve
+                              </button>
+                              <button
+                                onClick={() => handleBookingAction(booking.id, 'rejected')}
+                                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium text-sm"
+                              >
+                                ✗ Reject
+                              </button>
+                            </>
+                          ) : (
+                            <span className={`px-4 py-2 rounded-lg text-white text-sm font-medium ${booking.status === 'approved' ? 'bg-green-500' : 'bg-red-500'}`}>
+                              {booking.status.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-slate-500 text-center py-8">No booking requests at the moment.</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    const TimetableView = () => {
+      const [selectedDay, setSelectedDay] = useState('Monday');
+      const [schedule, setSchedule] = useState({ Monday: [], Tuesday: [], Wednesday: [], Thursday: [], Friday: [], Saturday: [] });
+      const [loading, setLoading] = useState(true);
+
+      // --- NEW: Fetch Real Timetable from Backend ---
+      useEffect(() => {
+        const fetchTimetable = async () => {
+          try {
+            // 1. Get the security token we saved during login
+            const token = localStorage.getItem('erp_token');
+            
+            // 2. Ask the backend for this specific student's schedule
+            const response = await fetch('http://localhost:3000/api/v1/timetable/my-schedule', {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+              // 3. Match the backend's lowercase days (monday) to our UI's capitalized days (Monday)
+              const formattedSchedule = {
+                Monday: result.data.schedule.monday || [],
+                Tuesday: result.data.schedule.tuesday || [],
+                Wednesday: result.data.schedule.wednesday || [],
+                Thursday: result.data.schedule.thursday || [],
+                Friday: result.data.schedule.friday || [],
+                Saturday: result.data.schedule.saturday || []
+              };
+              setSchedule(formattedSchedule);
+            }
+          } catch (err) {
+            console.error("Failed to fetch schedule", err);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        fetchTimetable();
+      }, []);
+
+      return (
+        <div className="p-8 space-y-6">
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {DAYS.map((day) => (
+              <button key={day} onClick={() => setSelectedDay(day)} className={`px-6 py-2 rounded-lg font-medium transition-all ${selectedDay === day ? 'bg-primary-500 text-white shadow-soft' : 'bg-white text-slate-700 border border-slate-200 hover:border-primary-300'}`}>{day}</button>
+            ))}
+          </div>
+          <div className="bg-white rounded-xl shadow-soft p-6 space-y-4">
+            {loading ? (
+               <p className="text-slate-500 animate-pulse">Loading your live schedule...</p>
+            ) : schedule[selectedDay] && schedule[selectedDay].length > 0 ? (
+               schedule[selectedDay].map((lecture) => (
+                <div key={lecture.id} className="p-5 rounded-xl border-l-4 bg-gradient-to-r from-primary-50 to-transparent border-primary-500">
+                  <h4 className="text-lg font-semibold text-slate-900">{lecture.subject.name}</h4>
+                  <p className="text-sm text-slate-600 mt-1">
+                    {lecture.startTime} - {lecture.endTime} • {lecture.classroom ? lecture.classroom.roomNumber : 'TBA'} • {lecture.teacher.name}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p className="text-slate-500">No classes scheduled.</p>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // --- REAL API BOOKING COMPONENT ---
+    const BookingView = () => {
+      const [classrooms, setClassrooms] = useState([]);
+      const [selectedClassroom, setSelectedClassroom] = useState(null);
+      
+      // Form State
+      const [formData, setFormData] = useState({ date: '2026-04-15', startTime: '14:00', endTime: '16:00', purpose: '' });
+      const [status, setStatus] = useState('');
+
+      // Fetch classrooms
+      useEffect(() => {
+        const fetchClassrooms = async () => {
+          const token = localStorage.getItem('erp_token');
+          try {
+            const res = await fetch('http://localhost:3000/api/v1/classrooms', { headers: { 'Authorization': `Bearer ${token}` } });
+            const result = await res.json();
+            if (result.success) setClassrooms(result.data.classrooms);
+          } catch (err) {}
+        };
+        fetchClassrooms();
+      }, []);
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setStatus('Submitting...');
+        const token = localStorage.getItem('erp_token');
+        try {
+          const res = await fetch('http://localhost:3000/api/v1/bookings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({
+              classroomId: selectedClassroom.id, bookingDate: formData.date,
+              startTime: formData.startTime, endTime: formData.endTime,
+              purpose: formData.purpose, expectedAttendees: selectedClassroom.capacity
+            })
+          });
+          const result = await res.json();
+          setStatus(result.success ? '✅ Booking successfully requested! Awaiting admin approval.' : '❌ Error creating booking.');
+        } catch (err) { setStatus('❌ Server error.'); }
+      };
+
+      return (
+        <div className="p-8 max-w-4xl mx-auto space-y-6">
+          <div className="bg-white rounded-xl shadow-soft p-6">
+            <h3 className="text-lg font-semibold mb-4">1. Select a Classroom</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {classrooms.map(room => (
+                <div key={room.id} onClick={() => setSelectedClassroom(room)} className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${selectedClassroom?.id === room.id ? 'border-primary-500 bg-primary-50' : 'border-slate-200 hover:border-primary-300'}`}>
+                  <h4 className="font-bold text-slate-900">{room.room_number}</h4>
+                  <p className="text-sm text-slate-500 capitalize">{room.room_type ? room.room_type.replace('_', ' ') : 'Room'} • Cap: {room.capacity}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {selectedClassroom && (
+            <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-soft p-6 space-y-4 animate-fade-in">
+              <h3 className="text-lg font-semibold">2. Booking Details for {selectedClassroom.room_number}</h3>
+              {status && <div className={`p-3 rounded-lg text-sm font-medium ${status.includes('✅') ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-700'}`}>{status}</div>}
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Date</label>
+                  <input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-2 border border-slate-300 rounded outline-none focus:border-primary-500" required />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Start Time</label>
+                  <input type="time" value={formData.startTime} onChange={e => setFormData({...formData, startTime: e.target.value})} className="w-full p-2 border border-slate-300 rounded outline-none focus:border-primary-500" required />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">End Time</label>
+                  <input type="time" value={formData.endTime} onChange={e => setFormData({...formData, endTime: e.target.value})} className="w-full p-2 border border-slate-300 rounded outline-none focus:border-primary-500" required />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Purpose</label>
+                <input type="text" placeholder="Purpose (e.g. Extra Lecture)" value={formData.purpose} onChange={e => setFormData({...formData, purpose: e.target.value})} className="w-full p-2 border border-slate-300 rounded outline-none focus:border-primary-500" required />
+              </div>
+              <button type="submit" className="w-full bg-primary-500 text-white py-3 rounded-lg font-medium hover:bg-primary-600 transition-colors">Submit Request</button>
+            </form>
+          )}
+        </div>
+      );
+    };
+
+    // --- API Login Function ---
+    const apiLogin = async (email, password) => {
+      try {
+        const response = await fetch('http://localhost:3000/api/v1/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        return await response.json();
+      } catch (error) {
+        return { success: false, error: { message: "Cannot connect to server. Is it running?" } };
+      }
+    };
+
+    // --- RESTORED PREMIUM LOGIN VIEW ---
+    const LoginView = ({ onLoginSuccess }) => {
+      const [email, setEmail] = useState('teacher@college.edu');
+      const [password, setPassword] = useState('SecurePass123!');
+      const [error, setError] = useState('');
+      const [loading, setLoading] = useState(false);
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+          const res = await fetch('http://localhost:3000/api/v1/auth/login', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+          });
+          const data = await res.json();
+          if (data.success) {
+             onLoginSuccess(data.data.user, data.data.token);
+          } else {
+             setError(data.error.message || 'Invalid credentials');
+             setLoading(false);
+          }
+        } catch (err) { 
+          setError("Cannot connect to server. Is it running?");
+          setLoading(false);
+        }
+      };
+
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-100">
+          <div className="bg-white p-10 rounded-2xl shadow-soft-lg w-full max-w-md animate-fade-in border border-slate-100">
+            <div className="text-center mb-8">
+              <h2 className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent pb-1">College ERP</h2>
+              <p className="text-slate-500 mt-2 font-medium">Sign in to your account</p>
+            </div>
+            
+            {error && (
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6 text-sm border border-red-100 flex items-center gap-2">
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                {error}
+              </div>
+            )}
+            
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Email Address</label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all" required />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all" required />
+              </div>
+              <button type="submit" disabled={loading} className="w-full bg-gradient-primary text-white py-3.5 rounded-xl font-bold hover:opacity-90 transition-all shadow-md mt-2">
+                {loading ? 'Authenticating...' : 'Sign In to Dashboard'}
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    };
+
+    // Main App Component
+    const App = () => {
+      const [activeView, setActiveView] = useState('dashboard');
+      const [userRole, setUserRole] = useState('student');
+      const [currentUser, setCurrentUser] = useState(null);
+
+      // Show Login Screen if no user is logged in
+      if (!currentUser) {
+        return <LoginView onLoginSuccess={(user, token) => {
+          setCurrentUser(user);
+          setUserRole(user.role);
+          localStorage.setItem('erp_token', token);
+          
+          // Update the global mock user with real DB info so the UI displays it!
+          MOCK_USER.name = user.firstName + ' ' + user.lastName;
+          MOCK_USER.email = user.email;
+          MOCK_USER.role = user.role;
+          MOCK_USER.avatar = `https://ui-avatars.com/api/?name=${user.firstName}+${user.lastName}&background=667eea&color=fff`;
+        }} />;
+      }
+
+      const renderView = () => {
+        switch (activeView) {
+          case 'dashboard':
+            return (
+              <>
+                <Header title="Dashboard" subtitle={`Welcome back, ${MOCK_USER.name}`} />
+                <DashboardView userRole={userRole} />
+              </>
+            );
+          case 'timetable':
+            return (
+              <>
+                <Header title={userRole === 'student' ? 'My Timetable' : 'My Schedule'} subtitle="Your weekly schedule pulled from the database" />
+                <TimetableView />
+              </>
+            );
+          // --- NEW ROUTING FOR BOOKINGS ---
+          case 'bookings':
+            return (
+              <>
+                <Header title="Book Classroom" subtitle="Request extra sessions and labs" />
+                <BookingView />
+              </>
+            );
+          default:
+            return (
+              <>
+                <Header title="Coming Soon" subtitle="This feature is under development" />
+                <div className="p-8 text-center text-slate-500">Available soon!</div>
+              </>
+            );
+        }
+      };
+
+      return (
+        <div className="flex h-screen overflow-hidden animate-fade-in">
+          <Sidebar activeView={activeView} setActiveView={setActiveView} userRole={userRole} />
+          <div className="flex-1 overflow-y-auto bg-slate-50">
+            {renderView()}
+          </div>
+          
+          <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow-soft-lg p-3 border border-slate-200">
+            <p className="text-xs text-slate-500 mb-2 font-medium">Logged in via API!</p>
+            <button onClick={() => {
+              setCurrentUser(null);
+              localStorage.removeItem('erp_token');
+            }} className="w-full px-3 py-2 text-xs rounded-md bg-red-50 text-red-600 hover:bg-red-100 font-medium transition-colors border border-red-100">
+              Logout
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    // Render the app
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
