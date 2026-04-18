@@ -35,10 +35,21 @@ const pool = new Pool({
 
 // Middleware
 app.use(helmet());
+
+// --- UPDATED CORS CONFIGURATION ---
+// Allow both your local environment and your live Vercel site to connect
 app.use(cors({
-  origin: process.env.FRONTEND_URL,
+  origin: [
+    'http://localhost:5500',
+    'http://127.0.0.1:5500',
+    'https://college-erp-timetable.vercel.app' 
+  ],
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+// ----------------------------------
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('combined'));
